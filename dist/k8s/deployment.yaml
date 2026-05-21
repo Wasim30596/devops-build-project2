@@ -14,6 +14,6 @@ spec:
     spec:
       containers:
         - name: trend-app
-          image: YOUR_DOCKERHUB_USERNAME/trend-app:latest
+          image: amirthaasiara/trend-app:latest
           ports:
             - containerPort: 3000
