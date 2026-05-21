@@ -2,13 +2,13 @@ pipeline {
   agent any
   environment {
     DOCKERHUB_CREDENTIALS = credentials('dockerhub-creds')
-    IMAGE_NAME  = "YOUR_DOCKERHUB_USERNAME/trend-app"
+    IMAGE_NAME  = "amirthaasiara/trend-app"
     EKS_CLUSTER = "trend-cluster"
     AWS_REGION  = "ap-south-1"
   }
   stages {
     stage('Clone') {
-      steps { git branch: 'main', url: 'https://github.com/Vennilavanguvi/Trend.git' }
+      steps { git branch: 'main', url:'https://github.com/Wasim30596/devops-build-project2.git' }
     }
     stage('Build Docker Image') {
       steps { sh "docker build -t ${IMAGE_NAME}:${BUILD_NUMBER} ." }
