@@ -1,38 +1,77 @@
 pipeline {
-  agent any
-  environment {
-    DOCKERHUB_CREDENTIALS = credentials('dockerhub-creds')
-    IMAGE_NAME  = "amirthaasiara/trend-app"
-    EKS_CLUSTER = "trend-cluster"
-    AWS_REGION  = "ap-south-1"
-  }
-  stages {
-    stage('Clone') {
-      steps { git branch: 'main', url:'https://github.com/Wasim30596/devops-build-project2.git' }
+    agent any
+
+    environment {
+        DOCKERHUB_CREDENTIALS = credentials('dockerhub-creds')
+        IMAGE_NAME  = "amirthaasiara/trend-app"
+        EKS_CLUSTER = "trend-cluster"
+        AWS_REGION  = "ap-south-1"
     }
-    stage('Build Docker Image') {
-      steps { sh "cd dist && docker build -t amirthaasiara/trend-app:${BUILD_NUMBER} ." }
+
+    stages {
+
+        stage('Clone') {
+            steps {
+                git branch: 'main',
+                url: 'https://github.com/Wasim30596/devops-build-project2.git'
+            }
+        }
+
+        stage('Build Docker Image') {
+            steps {
+                sh '''
+                    cd dist
+                    docker build -t ${IMAGE_NAME}:${BUILD_NUMBER} .
+                '''
+            }
+        }
+
+        stage('Push to DockerHub') {
+            steps {
+                sh '''
+                    echo $DOCKERHUB_CREDENTIALS_PSW | docker login -u $DOCKERHUB_CREDENTIALS_USR --password-stdin
+
+                    docker push ${IMAGE_NAME}:${BUILD_NUMBER}
+
+                    docker tag ${IMAGE_NAME}:${BUILD_NUMBER} ${IMAGE_NAME}:latest
+
+                    docker push ${IMAGE_NAME}:latest
+                '''
+            }
+        }
+
+        stage('Deploy to EKS') {
+            steps {
+
+                withCredentials([[
+                    $class: 'AmazonWebServicesCredentialsBinding',
+                    credentialsId: 'aws-creds'
+                ]]) {
+
+                    sh '''
+                        aws eks update-kubeconfig --name ${EKS_CLUSTER} --region ${AWS_REGION}
+
+                        kubectl apply -f dist/k8s/deployment.yaml
+
+                        kubectl apply -f dist/k8s/service.yaml
+
+                        kubectl set image deployment/trend-app \
+                        trend-app=${IMAGE_NAME}:${BUILD_NUMBER}
+
+                        kubectl rollout status deployment/trend-app
+                    '''
+                }
+            }
+        }
     }
-    stage('Push to DockerHub') {
-      steps {
-        sh "echo $DOCKERHUB_CREDENTIALS_PSW | docker login -u $DOCKERHUB_CREDENTIALS_USR --password-stdin"
-        sh "docker push ${IMAGE_NAME}:${BUILD_NUMBER}"
-        sh "docker tag  ${IMAGE_NAME}:${BUILD_NUMBER} ${IMAGE_NAME}:latest"
-        sh "docker push ${IMAGE_NAME}:latest"
-      }
+
+    post {
+        success {
+            echo "Deployment successful!"
+        }
+
+        failure {
+            echo "Pipeline failed - check logs."
+        }
     }
-    stage('Deploy to EKS') {
-      steps {
-        sh "aws eks update-kubeconfig --name ${EKS_CLUSTER} --region ${AWS_REGION}"
-        sh "kubectl apply -f k8s/deployment.yaml"
-        sh "kubectl apply -f k8s/service.yaml"
-        sh "kubectl set image deployment/trend-app trend-app=${IMAGE_NAME}:${BUILD_NUMBER}"
-        sh "kubectl rollout status deployment/trend-app"
-      }
-    }
-  }
-  post {
-    success { echo "Deployment successful!" }
-    failure { echo "Pipeline failed - check logs." }
-  }
 }
