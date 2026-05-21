@@ -1,0 +1,7 @@
+Dockerfile
+.dockerignore
+.gitignore
+Jenkinsfile
+terraform/
+k8s/
+README.md

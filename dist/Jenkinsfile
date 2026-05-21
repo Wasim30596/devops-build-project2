@@ -1,0 +1,38 @@
+pipeline {
+  agent any
+  environment {
+    DOCKERHUB_CREDENTIALS = credentials('dockerhub-creds')
+    IMAGE_NAME  = "YOUR_DOCKERHUB_USERNAME/trend-app"
+    EKS_CLUSTER = "trend-cluster"
+    AWS_REGION  = "ap-south-1"
+  }
+  stages {
+    stage('Clone') {
+      steps { git branch: 'main', url: 'https://github.com/Vennilavanguvi/Trend.git' }
+    }
+    stage('Build Docker Image') {
+      steps { sh "docker build -t ${IMAGE_NAME}:${BUILD_NUMBER} ." }
+    }
+    stage('Push to DockerHub') {
+      steps {
+        sh "echo $DOCKERHUB_CREDENTIALS_PSW | docker login -u $DOCKERHUB_CREDENTIALS_USR --password-stdin"
+        sh "docker push ${IMAGE_NAME}:${BUILD_NUMBER}"
+        sh "docker tag  ${IMAGE_NAME}:${BUILD_NUMBER} ${IMAGE_NAME}:latest"
+        sh "docker push ${IMAGE_NAME}:latest"
+      }
+    }
+    stage('Deploy to EKS') {
+      steps {
+        sh "aws eks update-kubeconfig --name ${EKS_CLUSTER} --region ${AWS_REGION}"
+        sh "kubectl apply -f k8s/deployment.yaml"
+        sh "kubectl apply -f k8s/service.yaml"
+        sh "kubectl set image deployment/trend-app trend-app=${IMAGE_NAME}:${BUILD_NUMBER}"
+        sh "kubectl rollout status deployment/trend-app"
+      }
+    }
+  }
+  post {
+    success { echo "Deployment successful!" }
+    failure { echo "Pipeline failed - check logs." }
+  }
+}
